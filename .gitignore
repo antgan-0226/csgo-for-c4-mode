@@ -1,0 +1,16 @@
+# Keil uVision build outputs
+Objects/
+Listings/
+DebugConfig/
+
+# Keil user-specific UI state
+*.uvguix.*
+*.uvoptx
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
