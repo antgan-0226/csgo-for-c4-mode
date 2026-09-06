@@ -7,6 +7,9 @@ DebugConfig/
 *.uvguix.*
 *.uvoptx
 
+# Auto-exported firmware (rebuild in Keil)
+c4-latest.bin
+
 # Editor / OS
 .vscode/
 .idea/
@@ -14,3 +17,8 @@ DebugConfig/
 *~
 Thumbs.db
 Desktop.ini
+
+# Flasher build artifacts
+C4Flasher/tools/c4-flasher/build/
+C4Flasher/tools/c4-flasher/dist/
+C4Flasher/tools/c4-flasher/*.spec

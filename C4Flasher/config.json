@@ -1,0 +1,4 @@
+{
+  "target": "stm32f103c8",
+  "frequency_hz": 1800000
+}

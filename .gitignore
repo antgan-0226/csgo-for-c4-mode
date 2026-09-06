@@ -1,0 +1,15 @@
+# Auto-exported firmware (Keil After Build)
+C4Flasher/firmware/c4-latest.bin
+
+# Flasher build artifacts
+C4Flasher/tools/c4-flasher/build/
+C4Flasher/tools/c4-flasher/dist/
+C4Flasher/tools/c4-flasher/*.spec
+C4Flasher/tools/c4-flasher/build_pyinstaller.log
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Optional: keep exe out of git if you prefer local-only
+# C4Flasher/C4Flasher.exe
