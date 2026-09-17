@@ -1,6 +1,8 @@
 #ifndef __MATRIXKEY_H
 #define __MATRIXKEY_H
 
+#include <stdint.h>
+
 void MatrixKey_Init(void);
 uint8_t MatrixKey_GetValue(void);
 uint8_t MatrixKey_GetValueFast(void);

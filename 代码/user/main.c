@@ -15,82 +15,14 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-/* 设为 1：仅测 MP3/蜂鸣器硬件，跳过游戏逻辑；测完改回 0 再编译 */
-#define MP3_HW_TEST 0
+/* Retain the reset snapshot for debugger inspection. */
+volatile uint32_t g_bootResetFlags = 0;
 
-void handleKeyPressFeedback(void);
-
-#if MP3_HW_TEST
-static void mp3TestShowScreen(const char* line1, const char* line2)
+static void showBrandScreen(void)
 {
-    LCD_WRITE_CMD(0x01);
-    Delay_ms(5);
-    LCD_WRITE_StrData((unsigned char*)line1, 0);
-    if (line2 != 0) {
-        LCD_WRITE_StrData((unsigned char*)line2, 16);
-    }
+    /* 11 characters, approximately centered on the 16-column display. */
+    LCD_WRITE_StrData((unsigned char*)"CSJOYER.COM", 2);
 }
-
-static void mp3TestRun(void)
-{
-    mp3_Init();
-    LED_Init();
-    LCD_INIT();
-    MatrixKey_Init();
-
-    Delay_ms(1500);
-    MP3CMD(0x06, 30);
-    LED2_OFF();
-    LED1_OFF();
-    mp3TestShowScreen("MP3 HW Test", "wait boot...");
-
-    Delay_ms(2000);
-    mp3TestShowScreen("Auto: #101", "plant done");
-    mp3_over();
-    LED2_ON();
-
-    Delay_ms(3000);
-    mp3TestShowScreen("Key test ready", "1-6 play * beep");
-    LED2_OFF();
-
-    while (1) {
-        char key = MatrixKey_GetValue();
-        if (key == '1') {
-            mp3TestShowScreen("Play #100", "power on");
-            mp3_start();
-            LED2_ON();
-        } else if (key == '2') {
-            mp3TestShowScreen("Play #101", "plant done");
-            mp3_over();
-            LED2_ON();
-        } else if (key == '3') {
-            mp3TestShowScreen("Play 02/000", "T win boom");
-            mp3_boom_music();
-            LED2_ON();
-        } else if (key == '4') {
-            mp3TestShowScreen("Play 03/000", "defuse");
-            mp3_defuse_start();
-            LED2_ON();
-        } else if (key == '5') {
-            mp3TestShowScreen("Play 03/001", "CT win");
-            mp3_ct_win();
-            LED2_ON();
-        } else if (key == '6') {
-            mp3TestShowScreen("Play #102", "boom full");
-            mp3_boom();
-            LED2_ON();
-        } else if (key == '*') {
-            mp3TestShowScreen("Buzzer only", "not MP3");
-            LED2_OFF();
-            handleKeyPressFeedback();
-        } else if (key == '#') {
-            mp3TestShowScreen("MP3 HW Test", "1-6 play * beep");
-            LED2_OFF();
-        }
-        Delay_ms(10);
-    }
-}
-#endif
 
 void showDefaultScreen(void);
 char arraysEqual(unsigned char arr1[], unsigned char arr2[], int size);
@@ -116,7 +48,6 @@ void handleHoldDefuseState(void);
 void handlePasswordVerifyState(void);
 void handleUnlockSuccessState(void);
 void handleUnlockFailureState(void);
-static void holdDefuseStep(uint8_t bonusDigit);
 
 typedef enum {
     STATE_PASSWORD_INPUT,
@@ -137,14 +68,13 @@ int unlockArrayIndex = 0;
 const int spaceCount = 4;
 uint8_t isPressed = 0;
 uint16_t countdown = 100;
-uint16_t Num = 0, Num_sign = 0;
+volatile uint16_t Num = 0, Num_sign = 0;
 
 int main()
 {
-#if MP3_HW_TEST
-    mp3TestRun();
-    return 0;
-#else
+    /* Capture before clearing: flags otherwise accumulate across resets. */
+    g_bootResetFlags = RCC->CSR;
+    RCC_ClearFlag();
     mp3_Init();
     Timer_Init();
     LED_Init();
@@ -152,6 +82,7 @@ int main()
     MatrixKey_Init();
     GameMode_Init();
 
+    showBrandScreen();
     Delay_ms(1000);
     LCD_WRITE_CMD(0x01);
     Delay_ms(5);
@@ -182,7 +113,6 @@ int main()
         }
         Delay_ms(10);
     }
-#endif
 }
 
 void handlePasswordInputState(void)
@@ -209,10 +139,6 @@ void handleClassicPlantInput(void)
     deployPasswordScan(password);
 
     if (password[0] != '*') {
-        for (long i = 0; i < 50000; i++) {
-            deployPasswordScan(password);
-        }
-
         if (password[0] != '*' && password[6] != '*') {
             Delay_ms(200);
             if (arraysEqual(password, defaultPassword, 7)) {
@@ -562,6 +488,8 @@ static void holdDefusePoll(uint8_t bonusDigit)
 
 void handleUnlockSuccessState(void)
 {
+    /* Defusing may finish during a countdown beep (especially Hold). */
+    LED1_OFF();
     mp3_ct_win();
 
     LCD_WRITE_CMD(0x01);
@@ -572,6 +500,8 @@ void handleUnlockSuccessState(void)
         LED1_Turn();
         Delay_ms(50);
     }
+    /* An odd number of toggles ends ON; LCD writes no longer clear PA8. */
+    LED1_OFF();
     LCD_WRITE_StrData(unlockPassword, spaceCount);
 
     for (int i = 0; i < 2; i++) {
@@ -592,16 +522,21 @@ void handleUnlockSuccessState(void)
 
 void handleUnlockFailureState(void)
 {
-    LED1_ON();
+    /* All modes share this terminal state. Stop the countdown buzzer;
+       the MP3 module supplies the explosion sound. Never rely on LCD
+       writes to change PA8. */
+    LED1_OFF();
     LCD_WRITE_CMD(0x01);
+    Delay_ms(5);
+    LCD_WRITE_StrData((unsigned char*)"T win!", spaceCount);
     mp3_boom_music();
 
+    /* Existing PA10 timing, NOT an MP3 playback-complete indication.
+       Verify the attached load before changing this output sequence. */
     Delay_ms(4000);
-    LED1_OFF();
-
-    LCD_WRITE_StrData((unsigned char*)"T win!", spaceCount);
+    LED2_OFF();
     while (1) {
-        LED2_OFF();
+        Delay_ms(100);
     }
 }
 
@@ -803,7 +738,7 @@ void mathAnswerScan(unsigned char pass[])
 
 void deployPasswordScan(unsigned char pass[])
 {
-    KeyNum = MatrixKey_GetValue();
+    /* Consume the same debounced sample used by mode switching. */
     bool needDisplayUpdate = false;
 
     if ((KeyNum >= '0' && KeyNum <= '9') && (isPressed == 0)) {

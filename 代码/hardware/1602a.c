@@ -1,21 +1,22 @@
 #include "1602a.h"
 #include "stm32f10x_rcc.h"
+#include "Delay.h"
+
+static void LCD_WriteBus(uint8_t value)
+{
+    GPIOA->BSRR = ((uint32_t)((~value) & 0xFFu) << 16) | value;
+}
 
 void delay_us(unsigned int us)
 {
-	unsigned int  i;	
-	do
-	{
-		i = 10;
-		while(i--) __nop();
-	} 
-	while (--us);	
+    if (us) Delay_us(us);
 }
 
 void GPIO_INIT(void)
 {		
 	GPIO_InitTypeDef PB;
 	GPIO_InitTypeDef PA;	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 	GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);
 	RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA, ENABLE );
 	RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOB, ENABLE );
@@ -36,10 +37,10 @@ void GPIO_INIT(void)
 void LCD_INIT(void)
 {
 	GPIO_INIT();	
-	GPIO_Write( GPIOA, 0x0000 );
-	GPIO_Write( GPIOB, 0x0000 );
+	LCD_WriteBus(0);
+	GPIO_ResetBits(GPIOB, EN | RW | RS);
 	
-	delay_us(15000);
+	Delay_ms(50);
 	LCD_WRITE_CMD( 0x38 );
 	delay_us(5000);
 	LCD_WRITE_CMD( 0x38 );
@@ -79,9 +80,12 @@ void LCD_WRITE_CMD( unsigned char CMD )
 	GPIO_ResetBits( GPIOB, RS );
 	GPIO_ResetBits( GPIOB, RW );
 	GPIO_ResetBits( GPIOB, EN );
-	GPIO_Write( GPIOA, CMD );	
+	LCD_WriteBus(CMD);
+	Delay_us(1);
 	GPIO_SetBits( GPIOB, EN );
+	Delay_us(1);
 	GPIO_ResetBits( GPIOB, EN );
+    if (CMD == 0x01 || (CMD & 0xFE) == 0x02) Delay_ms(2);
 }
 
 void LCD_WRITE_ByteDATA( unsigned char ByteData )
@@ -90,8 +94,10 @@ void LCD_WRITE_ByteDATA( unsigned char ByteData )
 	GPIO_SetBits( GPIOB, RS );
 	GPIO_ResetBits( GPIOB, RW );
 	GPIO_ResetBits( GPIOB, EN );
-	GPIO_Write( GPIOA, ByteData );
+	LCD_WriteBus(ByteData);
+	Delay_us(1);
 	GPIO_SetBits( GPIOB, EN );
+	Delay_us(1);
 	GPIO_ResetBits( GPIOB, EN );
 }
 
@@ -107,25 +113,9 @@ void LCD_WRITE_StrDATA(unsigned char *StrData, unsigned char col)
 }
 
 void ReadBusy(void)
-{		
-	GPIO_Write( GPIOA, 0x00ff );	
-	GPIO_InitTypeDef p;
-	p.GPIO_Pin = GPIO_Pin_7;
-	p.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-	p.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init( GPIOA, &p );
-	
-	GPIO_ResetBits( GPIOB, RS );
-	GPIO_SetBits( GPIOB, RW );	
-	GPIO_SetBits( GPIOB, EN );
-	while( GPIO_ReadInputDataBit( GPIOA, GPIO_Pin_7 ) );
-	GPIO_ResetBits( GPIOB, EN );
-		
-	p.GPIO_Pin = GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_2|
-							 GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|
-					 		 GPIO_Pin_6|GPIO_Pin_7;
-	p.GPIO_Mode = GPIO_Mode_Out_PP;
-	GPIO_Init( GPIOA, &p  );
+{
+    /* Write-only bus: avoid contention and unbounded busy polling. */
+    Delay_us(50);
 }
 
 void WUserImg(unsigned char pos,unsigned char *ImgInfo)

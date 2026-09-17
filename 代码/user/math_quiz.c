@@ -8,7 +8,7 @@
 
 
 
-extern uint16_t Num;
+extern volatile uint16_t Num;
 
 
 

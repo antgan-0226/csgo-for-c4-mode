@@ -12,7 +12,7 @@
 /*********************************** 引脚定义 ********************************************/
 
 /*********************************** 函数声明 ********************************************/
-void ReadBusy(void);              // 读取LCD忙标志，等待LCD空闲
+void ReadBusy(void);              // 固定指令间隔；不再读取忙标志
 void LCD_WRITE_CMD(unsigned char CMD);  // 向LCD写入命令
 void LCD_SetCursor(unsigned char Column);  // 设置LCD光标位置
 void LCD_WRITE_StrDATA(unsigned char *StrData, unsigned char col);  // 显示字符串
